@@ -50,6 +50,8 @@ namespace FreeSql.Sqlite
         internal SqliteConnectionPool _pool;
         public string Name { get; set; } = "Sqlite SQLiteConnection 对象池";
         public int PoolSize { get; set; } = 100;
+        public string Password { get; set; }
+
         public TimeSpan SyncGetTimeout { get; set; } = TimeSpan.FromSeconds(10);
         public TimeSpan IdleTimeout { get; set; } = TimeSpan.Zero;
         public int AsyncGetCapacity { get; set; } = 10000;
@@ -91,6 +93,14 @@ namespace FreeSql.Sqlite
                     _connectionString = Regex.Replace(_connectionString, pattern, "", RegexOptions.IgnoreCase);
                 }
 
+                pattern = @"Password=(?<password>[\w\d-@/~_/+!#$&/*]+);";
+                m = Regex.Match(_connectionString, pattern, RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                     Password = m.Groups[1].Value;
+                     _connectionString = Regex.Replace(_connectionString, pattern, "", RegexOptions.IgnoreCase);
+                }
+
                 var att = Regex.Split(_connectionString, @"Pooling\s*=\s*", RegexOptions.IgnoreCase);
                 if (att.Length == 2)
                 {
@@ -120,6 +130,7 @@ namespace FreeSql.Sqlite
             }
         }
 
+
         public bool OnCheckAvailable(Object<DbConnection> obj)
         {
             if (obj.Value.State == ConnectionState.Closed) obj.Value.OpenAndAttach(Attaches);
@@ -129,7 +140,17 @@ namespace FreeSql.Sqlite
         public DbConnection OnCreate()
         {
             var conn = new SQLiteConnection(_connectionString);
+            DecodeDb(conn);
             return conn;
+        }
+
+        public void DecodeDb(SQLiteConnection conn)
+        {
+            if (!string.IsNullOrEmpty(Password))
+            {
+                conn.Open();
+                conn.SetPassword(this.Password);
+            }
         }
 
         public void OnDestroy(DbConnection obj)
